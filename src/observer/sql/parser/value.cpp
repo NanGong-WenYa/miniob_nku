@@ -11,22 +11,61 @@ See the Mulan PSL v2 for more details. */
 //
 // Created by WangYunlai on 2023/06/28.
 //
-
+#include "common/rc.h"
 #include "sql/parser/value.h"
 #include "common/lang/comparator.h"
 #include "common/lang/string.h"
 #include "common/log/log.h"
 #include <sstream>
-#include<string>
-#include<cmath>
+#include <string.h>
+#include <stdlib.h> 
+bool fl=true;
+const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "booleans","dates"};
 
 
+bool correctDate(int y,int m,int d){
+  static int mon[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  bool leap = (y%400==0 || (y%100 && y%4==0));
+  return y > 0 && (m > 0) && (m <= 12) && (d > 0) && (d <= ((m==2 && leap)?1:0) + mon[m]);
+}
 
-const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "booleans"};
+void strDate2intDate(const char* strDate,int& intDate)
+{
+  int weight = 10000; 
+  intDate = 0; 
+  int tempValue = 0; 
+  
+  for (size_t i = 0; i < strlen(strDate); i++) {  
+      if (strDate[i] != '-') {  
+          tempValue = tempValue * 10 + (strDate[i] - '0');  
+      } else {  
+          intDate += tempValue * weight;  
+          tempValue = 0;  
+          weight /= 100; 
+      }  
+  }  
+  intDate += tempValue * weight; 
+}
+
+void intDate2strDate(std::string &strDate,int intDate){
+  int temp=0;
+  temp=intDate/10000;
+  strDate+=std::to_string(temp)+"-";
+  temp=(intDate%10000)/100;
+  if(temp<10)
+    strDate+="0"+std::to_string(temp)+"-";
+  else
+    strDate+=std::to_string(temp)+"-";
+  temp=intDate%100;
+  if(temp<10)
+    strDate+="0"+std::to_string(temp);
+  else
+    strDate+=std::to_string(temp);
+}
 
 const char *attr_type_to_string(AttrType type)
 {
-  if (type >= UNDEFINED && type <= FLOATS) {
+  if (type >= UNDEFINED && type <= DATES) {
     return ATTR_TYPE_NAME[type];
   }
   return "unknown";
@@ -49,11 +88,13 @@ Value::Value(bool val) { set_boolean(val); }
 
 Value::Value(const char *s, int len /*= 0*/) { set_string(s, len); }
 
-Value::Value(const char*date,int len,int flag){
+Value::Value(const char*date,int len, int flag)
+{ 
   int intDate=0;
-  strDate_to_intDate_(date,intDate);
+  strDate2intDate(date,intDate);
   set_date(intDate);
 }
+
 void Value::set_data(char *data, int length)
 {
   switch (attr_type_) {
@@ -72,10 +113,11 @@ void Value::set_data(char *data, int length)
       num_value_.bool_value_ = *(int *)data != 0;
       length_                = length;
     } break;
+    //添加DATES类型
     case DATES:{
       num_value_.date_value_=*(int*)data;
-      length_=length;
-    }
+      length_               = length;
+    }break;
     default: {
       LOG_WARN("unknown data type: %d", attr_type_);
     } break;
@@ -100,11 +142,6 @@ void Value::set_boolean(bool val)
   num_value_.bool_value_ = val;
   length_                = sizeof(val);
 }
-void Value::set_date(int val){
-  attr_type_=DATES;
-  num_value_.date_value_=val;
-  length_=sizeof(val);
-}
 void Value::set_string(const char *s, int len /*= 0*/)
 {
   attr_type_ = CHARS;
@@ -115,6 +152,20 @@ void Value::set_string(const char *s, int len /*= 0*/)
     str_value_.assign(s);
   }
   length_ = str_value_.length();
+}
+
+void Value::set_date(int val)
+{
+    fl=correctDate(val/10000,(val%10000)/100,val%100);
+    if(fl==false){
+      //在解析不符合规范条件下需要只输出FALIURE并结束当前语句
+
+    }
+    else{
+      attr_type_=DATES;
+      num_value_.date_value_=val;
+      length_=sizeof(val);
+    }
 }
 
 void Value::set_value(const Value &value)
@@ -132,9 +183,9 @@ void Value::set_value(const Value &value)
     case BOOLEANS: {
       set_boolean(value.get_boolean());
     } break;
-    case DATES:{
+    case DATES: {
       set_date(value.get_date());
-    }
+    } break;
     case UNDEFINED: {
       ASSERT(false, "got an invalid value type");
     } break;
@@ -169,6 +220,11 @@ std::string Value::to_string() const
     case CHARS: {
       os << str_value_;
     } break;
+    case DATES:{
+      std::string strDate="";
+      intDate2strDate(strDate,num_value_.date_value_);
+      os<<strDate;
+    } break;
     default: {
       LOG_WARN("unsupported attr type: %d", attr_type_);
     } break;
@@ -192,11 +248,11 @@ int Value::compare(const Value &other) const
             (void *)other.str_value_.c_str(),
             other.str_value_.length());
       } break;
-      case DATES:{
-        return common::compare_date((void*)&this->num_value_.date_value_,(void*)&other.num_value_.date_value_);
-      }
       case BOOLEANS: {
         return common::compare_int((void *)&this->num_value_.bool_value_, (void *)&other.num_value_.bool_value_);
+      }
+      case DATES:{
+        return common::compare_date((void *)&this->num_value_.date_value_,(void *)&other.num_value_.date_value_);
       }
       default: {
         LOG_WARN("unsupported type: %d", this->attr_type_);
@@ -211,6 +267,20 @@ int Value::compare(const Value &other) const
   }
   LOG_WARN("not supported");
   return -1;  // TODO return rc?
+}
+
+int Value::get_date() const
+{
+  switch (attr_type_){
+    case DATES:{
+      return num_value_.date_value_;
+    }
+    default:{
+      LOG_WARN("undefined data type,type id=",attr_type_);
+      return 0;
+    }
+  }
+
 }
 
 int Value::get_int() const
@@ -241,17 +311,6 @@ int Value::get_int() const
   return 0;
 }
 
-int Value::get_date()const{
-  switch(attr_type_){
-    case DATES:{
-      return num_value_.int_value_;
-    }
-    default:{
-      LOG_WARN("unknown data type.type=%d",attr_type_);
-    }
-    return 0;
-  }
-}
 float Value::get_float() const
 {
   switch (attr_type_) {
@@ -319,89 +378,4 @@ bool Value::get_boolean() const
     }
   }
   return false;
-}
-
-bool is_leap_year(int year){
-  if(year%4==0){
-    return true;
-
-  }
-  else{
-    return false;
-  }
-}
-
-
-void strDate_to_intDate_(const char* str, int& num) {
-int year = 0, month = 0, day= 0;
-std::string temp;
-int cnt = 0, period = 0;
-do{
-if (!((str[cnt] >= '0' && str[cnt] <= '9') )) {
-
-
-if (period == 0) {
-int bitz = temp.length();
-for (int i = 0; i < bitz;i++) {
-year += (temp[i]-48)*pow(10,bitz-1-i);
-
-}
-}
-else if (period == 1) {
-int bitz = temp.length();
-for (int i = 0; i < bitz; i++) {
-month += (temp[i] - 48) * pow(10, bitz - 1 - i);
-
-}
-}
-else {
-int bitz = temp.length();
-for (int i = 0; i < bitz; i++) {
-day += (temp[i] - 48) * pow(10, bitz - 1 - i);
-
-}
-}
-cnt++;
-period++;
-temp = "";
-continue;
-}
-else {
-if (temp == "" && str[cnt] == '0') {
-cnt++;
-continue;
-}
-else {
-temp += str[cnt];
-cnt++;
-}
-}
-} while (((str[cnt] >= '0' && str[cnt] <= '9') || str[cnt] == '-')||temp!="");
-/*if (month==1||month==3||month==5||month==7||month==8||month==10||month==12) {
-if (day > 31) {
-cout << "FAILURE"<<endl;
-return
-}
-else
-}*/
-num=day+month*100+year*10000;
-}
-
-void intDate_to_strDate_(const int number, std::string& str) {
-int num=number;
-char temp[8]{ 0 };
-int i = 0;
-int j = 0;
-while (num) {
-temp[i++] = (char)(num % 10 +'0');
-num /= 10;
-}
-while (i > 0) {
-str+= temp[--i];
-j++;
-}
-str.insert(4, "-");
-str.insert(7, "-");
-
-
 }
