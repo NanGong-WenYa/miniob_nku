@@ -18,6 +18,8 @@ See the Mulan PSL v2 for more details. */
 #include "common/log/log.h"
 #include <sstream>
 #include<string>
+#include<cmath>
+#include "../../../../../../../usr/include/c++/9/tr1/cmath"
 
 
 const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "booleans"};
@@ -130,6 +132,9 @@ void Value::set_value(const Value &value)
     case BOOLEANS: {
       set_boolean(value.get_boolean());
     } break;
+    case DATES:{
+      set_date(value.get_date());
+    }
     case UNDEFINED: {
       ASSERT(false, "got an invalid value type");
     } break;
@@ -188,7 +193,7 @@ int Value::compare(const Value &other) const
             other.str_value_.length());
       } break;
       case DATES:{
-        return common::compare_date((void*)this->num_value_.date_value_,(void*)&other.num_value_.date_value_);
+        return common::compare_date((void*)&this->num_value_.date_value_,(void*)&other.num_value_.date_value_);
       }
       case BOOLEANS: {
         return common::compare_int((void *)&this->num_value_.bool_value_, (void *)&other.num_value_.bool_value_);
@@ -326,9 +331,77 @@ bool is_leap_year(int year){
   }
 }
 
-void strDate_to_intDate_(const char * strDate,int& intDate){
-  intDate=std::stoi(strDate)+1;
+
+void strDate_to_intDate_(const char* str, int& num) {
+int year = 0, month = 0, day= 0;
+std::string temp;
+int cnt = 0, period = 0;
+do{
+if (!((str[cnt] >= '0' && str[cnt] <= '9') )) {
+
+
+if (period == 0) {
+int bitz = temp.length();
+for (int i = 0; i < bitz;i++) {
+year += (temp[i]-48)*pow(10,bitz-1-i);
+
 }
-void intDate_to_strDate_(const int intDate,std::string& strDate){
-  strDate=std::to_string(intDate);
+}
+else if (period == 1) {
+int bitz = temp.length();
+for (int i = 0; i < bitz; i++) {
+month += (temp[i] - 48) * pow(10, bitz - 1 - i);
+
+}
+}
+else {
+int bitz = temp.length();
+for (int i = 0; i < bitz; i++) {
+day += (temp[i] - 48) * pow(10, bitz - 1 - i);
+
+}
+}
+cnt++;
+period++;
+temp = "";
+continue;
+}
+else {
+if (temp == "" && str[cnt] == '0') {
+cnt++;
+continue;
+}
+else {
+temp += str[cnt];
+cnt++;
+}
+}
+} while (((str[cnt] >= '0' && str[cnt] <= '9') || str[cnt] == '-')||temp!="");
+/*if (month==1||month==3||month==5||month==7||month==8||month==10||month==12) {
+if (day > 31) {
+cout << "FAILURE"<<endl;
+return
+}
+else
+}*/
+num=day+month*100+year*10000;
+}
+
+void intDate_to_strDate_(const int number, std::string& str) {
+int num=number;
+char temp[8]{ 0 };
+int i = 0;
+int j = 0;
+while (num) {
+temp[i++] = (char)(num % 10 +'0');
+num /= 10;
+}
+while (i > 0) {
+str+= temp[--i];
+j++;
+}
+str.insert(4, "-");
+str.insert(7, "-");
+
+
 }
