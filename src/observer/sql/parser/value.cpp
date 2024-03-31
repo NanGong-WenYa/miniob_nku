@@ -19,7 +19,7 @@ See the Mulan PSL v2 for more details. */
 #include <sstream>
 #include<string>
 #include<cmath>
-#include "../../../../../../../usr/include/c++/9/tr1/cmath"
+
 
 
 const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "booleans"};
