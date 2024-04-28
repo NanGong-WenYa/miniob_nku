@@ -42,8 +42,8 @@ void strDate2intDate(const char* strDate,int& intDate)
           intDate += tempValue * weight;  
           tempValue = 0;  
           weight /= 100; 
-      }  
-  }  
+      } 
+  }   
   intDate += tempValue * weight; 
 }
 
@@ -142,7 +142,7 @@ void Value::set_boolean(bool val)
   num_value_.bool_value_ = val;
   length_                = sizeof(val);
 }
-void Value::set_string(const char *s, int len /*= 0*/)
+void Value::set_string(const char *s, int len )
 {
   attr_type_ = CHARS;
   if (len > 0) {
@@ -332,6 +332,7 @@ float Value::get_float() const
       return float(num_value_.bool_value_);
     } break;
     default: {
+      std::cout<<"unknown"<<std::endl;
       LOG_WARN("unknown data type. type=%d", attr_type_);
       return 0;
     }
